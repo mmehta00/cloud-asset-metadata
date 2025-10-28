@@ -1,22 +1,26 @@
 import os
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from bson import ObjectId
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import List
 from dotenv import load_dotenv
-from auth import create_access_token, get_current_user
-from fastapi.security import OAuth2PasswordRequestForm
-from datetime import timedelta
 
+# Import authentication utilities and router
+from auth import router as auth_router, get_current_user
+from auth import MONGO_URI
 
+# ----------------------------
+# Load environment variables
+# ----------------------------
+load_dotenv()
 
 app = FastAPI(
     title="Cloud Asset Metadata API",
-    description="Manage cloud asset metadata (EC2, S3, etc.) with REST API",
-    version="1.0.0"
+    description="Manage cloud asset metadata (EC2, S3, etc.) with REST API and JWT authentication",
+    version="2.0.0"
 )
 
 app.add_middleware(
@@ -26,26 +30,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-load_dotenv()
 
-MONGO_URI = os.environ.get("MONGO_URI")
+# ----------------------------
+# Database Connection
+# ----------------------------
 if not MONGO_URI:
-    raise ValueError("MONGO_URI environment variable is not set")
+    raise ValueError("❌ MONGO_URI environment variable is not set")
 
 try:
     client = MongoClient(MONGO_URI)
     db = client["cloudassets"]
     assets_collection = db["assets"]
-    client.admin.command('ping')
-    print("Successfully connected to MongoDB Atlas")
+    client.admin.command("ping")
+    print("✅ Successfully connected to MongoDB Atlas")
 except PyMongoError as e:
-    print(f"Error connecting to MongoDB: {e}")
+    print(f"❌ Error connecting to MongoDB: {e}")
     raise
 
-
+# ----------------------------
+# Models
+# ----------------------------
 class AssetCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200, description="Asset name")
-    owner: str = Field(..., min_length=1, max_length=100, description="Asset owner")
     type: str = Field(..., min_length=1, max_length=50, description="Asset type (e.g., EC2, S3)")
     region: str = Field(..., min_length=1, max_length=50, description="Cloud region")
 
@@ -53,7 +59,6 @@ class AssetCreate(BaseModel):
         json_schema_extra = {
             "example": {
                 "name": "production-web-server",
-                "owner": "engineering-team",
                 "type": "EC2",
                 "region": "us-east-1"
             }
@@ -61,146 +66,101 @@ class AssetCreate(BaseModel):
 
 
 class AssetResponse(BaseModel):
-    id: str = Field(..., description="Asset unique identifier")
+    asset_id: str = Field(..., alias="id")
     name: str
     owner: str
     type: str
     region: str
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "507f1f77bcf86cd799439011",
-                "name": "production-web-server",
-                "owner": "engineering-team",
-                "type": "EC2",
-                "region": "us-east-1"
-            }
-        }
-
-
+# ----------------------------
+# Helper Function
+# ----------------------------
 def convert_objectid(asset: dict) -> dict:
     if asset and "_id" in asset:
         asset["id"] = str(asset["_id"])
         del asset["_id"]
     return asset
 
-
-
+# ----------------------------
+# Routes
+# ----------------------------
 @app.get("/")
 def root():
     return {
-        "message": "Cloud Asset Metadata API",
-        "endpoints": {
-            "create": "POST /assets",
-            "list": "GET /assets",
-            "get": "GET /assets/{id}",
-            "delete": "DELETE /assets/{id}"
+        "message": "Cloud Asset Metadata API with Authentication",
+        "auth_routes": {
+            "register": "POST /auth/register",
+            "login": "POST /auth/token"
+        },
+        "asset_routes": {
+            "create": "POST /assets (requires JWT)",
+            "list": "GET /assets (requires JWT)",
+            "get": "GET /assets/{id} (requires JWT)",
+            "delete": "DELETE /assets/{id} (requires JWT)"
         }
     }
 
+# Register the authentication router
+app.include_router(auth_router)
 
+# ----------------------------
+# Protected Asset Endpoints
+# ----------------------------
 @app.post("/assets", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
-def create_asset(asset: AssetCreate):
+def create_asset(asset: AssetCreate, current_user: str = Depends(get_current_user)):
     try:
-        asset_dict = asset.model_dump()
+        asset_dict = asset.dict()
+        asset_dict["owner"] = current_user  # Assign owner dynamically
         result = assets_collection.insert_one(asset_dict)
 
         created_asset = assets_collection.find_one({"_id": result.inserted_id})
         return convert_objectid(created_asset)
     except PyMongoError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 @app.get("/assets", response_model=List[AssetResponse])
-def list_assets():
+def list_assets(current_user: str = Depends(get_current_user)):
     try:
-        assets = list(assets_collection.find())
+        assets = list(assets_collection.find({"owner": current_user}))
         return [convert_objectid(asset) for asset in assets]
     except PyMongoError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 @app.get("/assets/{id}", response_model=AssetResponse)
-def get_asset(id: str):
+def get_asset(id: str, current_user: str = Depends(get_current_user)):
     try:
         if not ObjectId.is_valid(id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid asset ID format"
-            )
+            raise HTTPException(status_code=400, detail="Invalid asset ID format")
 
-        asset = assets_collection.find_one({"_id": ObjectId(id)})
-
+        asset = assets_collection.find_one({"_id": ObjectId(id), "owner": current_user})
         if not asset:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Asset with id '{id}' not found"
-            )
+            raise HTTPException(status_code=404, detail="Asset not found or unauthorized access")
 
         return convert_objectid(asset)
-    except HTTPException:
-        raise
     except PyMongoError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-@app.delete("/assets/{id}", status_code=status.HTTP_200_OK)
-def delete_asset(id: str):
+@app.delete("/assets/{id}")
+def delete_asset(id: str, current_user: str = Depends(get_current_user)):
     try:
         if not ObjectId.is_valid(id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid asset ID format"
-            )
+            raise HTTPException(status_code=400, detail="Invalid asset ID format")
 
-        result = assets_collection.delete_one({"_id": ObjectId(id)})
-
+        result = assets_collection.delete_one({"_id": ObjectId(id), "owner": current_user})
         if result.deleted_count == 0:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Asset with id '{id}' not found"
-            )
+            raise HTTPException(status_code=404, detail="Asset not found or unauthorized deletion")
 
-        return {"message": f"Asset with id '{id}' deleted successfully"}
-    except HTTPException:
-        raise
+        return {"message": f"✅ Asset '{id}' deleted successfully"}
     except PyMongoError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
+# ----------------------------
+# Run App (Local)
+# ----------------------------
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
