@@ -1,0 +1,37 @@
+{
+  "production": {
+    "app_function": "main.app",
+    "aws_region": "us-east-1",
+    "runtime": "python3.9",
+    "environment_variables": {
+      "MONGO_URI": "your-mongodb-atlas-connection-string-here"
+    },
+    "keep_warm": false,
+    "memory_size": 512,
+    "timeout_seconds": 30,
+    "project_name": "cloud-asset-api",
+    "s3_bucket": "zappa-cloud-asset-api-deployments",
+    "exclude": [
+      "*.pyc",
+      "__pycache__",
+      "*.md",
+      ".git",
+      ".env",
+      "tests"
+    ],
+    "slim_handler": true
+  },
+  "dev": {
+    "app_function": "main.app",
+    "aws_region": "us-east-1",
+    "runtime": "python3.9",
+    "environment_variables": {
+      "MONGO_URI": "your-mongodb-atlas-connection-string-here"
+    },
+    "keep_warm": false,
+    "memory_size": 256,
+    "timeout_seconds": 30,
+    "project_name": "cloud-asset-api-dev",
+    "s3_bucket": "zappa-cloud-asset-api-dev-deployments"
+  }
+}

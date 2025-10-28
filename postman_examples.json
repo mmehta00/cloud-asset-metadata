@@ -1,0 +1,98 @@
+{
+  "info": {
+    "name": "Cloud Asset Metadata API - Example Payloads",
+    "description": "Example POST payloads for testing the Cloud Asset Metadata API with Postman"
+  },
+  "examples": [
+    {
+      "name": "Create EC2 Instance",
+      "method": "POST",
+      "url": "http://localhost:8000/assets",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "production-web-server",
+        "owner": "engineering-team",
+        "type": "EC2",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "name": "Create S3 Bucket",
+      "method": "POST",
+      "url": "http://localhost:8000/assets",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "company-backups-bucket",
+        "owner": "devops-team",
+        "type": "S3",
+        "region": "eu-west-1"
+      }
+    },
+    {
+      "name": "Create RDS Database",
+      "method": "POST",
+      "url": "http://localhost:8000/assets",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "production-database",
+        "owner": "data-team",
+        "type": "RDS",
+        "region": "us-west-2"
+      }
+    },
+    {
+      "name": "Create Lambda Function",
+      "method": "POST",
+      "url": "http://localhost:8000/assets",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "image-processor",
+        "owner": "ml-team",
+        "type": "Lambda",
+        "region": "ap-southeast-1"
+      }
+    },
+    {
+      "name": "Create EKS Cluster",
+      "method": "POST",
+      "url": "http://localhost:8000/assets",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "production-k8s",
+        "owner": "platform-team",
+        "type": "EKS",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "name": "Create CloudFront Distribution",
+      "method": "POST",
+      "url": "http://localhost:8000/assets",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "cdn-distribution-prod",
+        "owner": "frontend-team",
+        "type": "CloudFront",
+        "region": "global"
+      }
+    }
+  ],
+  "curl_examples": {
+    "create_asset": "curl -X POST \"http://localhost:8000/assets\" -H \"Content-Type: application/json\" -d '{\"name\":\"production-web-server\",\"owner\":\"engineering-team\",\"type\":\"EC2\",\"region\":\"us-east-1\"}'",
+    "list_assets": "curl -X GET \"http://localhost:8000/assets\"",
+    "get_asset": "curl -X GET \"http://localhost:8000/assets/507f1f77bcf86cd799439011\"",
+    "delete_asset": "curl -X DELETE \"http://localhost:8000/assets/507f1f77bcf86cd799439011\""
+  }
+}
