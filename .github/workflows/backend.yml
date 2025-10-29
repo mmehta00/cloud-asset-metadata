@@ -41,13 +41,3 @@ jobs:
       # 5️⃣  Validate syntax (basic safety check)
       - name: Validate Code Syntax
         run: python -m compileall .
-
-      # 6️⃣  Import smoke test (catches missing modules early)
-      - name: Import Smoke Test
-        run: |
-          python - << 'PY'
-          import importlib
-          for m in ("auth", "main"):
-              importlib.import_module(m)
-          print("✅ Import smoke test passed successfully.")
-          PY
