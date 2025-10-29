@@ -22,6 +22,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
 MONGO_URI = os.getenv("MONGO_URI")
 
 # Fail fast if missing any .env values
+if os.getenv("GITHUB_ACTIONS") == "true":
+    print("⚠️ Running in GitHub Actions CI — skipping env var enforcement.")
+    SECRET_KEY = SECRET_KEY or "dummy_secret"
+    ALGORITHM = ALGORITHM or "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES = ACCESS_TOKEN_EXPIRE_MINUTES or "60"
+    MONGO_URI = MONGO_URI or "mongodb://localhost:27017/testdb"
+    
 required_env_vars = {
     "SECRET_KEY": SECRET_KEY,
     "ALGORITHM": ALGORITHM,
