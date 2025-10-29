@@ -53,12 +53,22 @@ client = MongoClient(MONGO_URI)
 db = client["cloudassets"]
 users_collection = db["users"]
 
-try:
-    users_collection.create_index("username", unique=True)
-    print("✅ Ensured unique index on 'username' field")
-except Exception as e:
-    print(f"⚠️ Could not create index on username: {e}")
-
+if os.getenv("GITHUB_ACTIONS") == "true":
+    print("⚠️ Running in GitHub Actions CI — skipping MongoDB connection.")
+    client = None
+    db = None
+    users_collection = None
+else:
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client["cloudassets"]
+        users_collection = db["users"]
+        client.admin.command("ping")
+        users_collection.create_index("username", unique=True)
+        print("✅ Connected to MongoDB and ensured unique index on username")
+    except Exception as e:
+        print(f"❌ MongoDB connection failed: {e}")
+        raise
 # ---------------------------
 # Security Configuration
 # ---------------------------
