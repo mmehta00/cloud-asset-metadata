@@ -41,3 +41,33 @@ jobs:
       # 5️⃣  Validate syntax (basic safety check)
       - name: Validate Code Syntax
         run: python -m compileall .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Deploy to AWS Lambda with Zappa
+
+    if: github.ref == 'refs/heads/main' && success()
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install zappa
+
+      - name: Deploy using Zappa
+        run: |
+          zappa update production || zappa deploy production
