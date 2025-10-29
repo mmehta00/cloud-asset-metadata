@@ -1,4 +1,4 @@
-name: Cloud Asset API - CI Pipeline
+name: Cloud Asset API - CI/CD Pipeline
 
 on:
   push:
@@ -13,17 +13,17 @@ jobs:
     name: Build and Verify FastAPI Project
 
     steps:
-      # 1️⃣  Checkout your repository code
+      # 1️⃣ Checkout your repository
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2️⃣  Set up Python environment
+      # 2️⃣ Set up Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      # 3️⃣  Cache pip packages to speed up installs
+      # 3️⃣ Cache pip dependencies
       - name: Cache pip
         uses: actions/cache@v4
         with:
@@ -32,13 +32,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # 4️⃣  Install dependencies
+      # 4️⃣ Install dependencies
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
 
-      # 5️⃣  Validate syntax (basic safety check)
+      # 5️⃣ Validate Python syntax
       - name: Validate Code Syntax
         run: python -m compileall .
 
@@ -53,6 +53,10 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      MONGO_URI: ${{ secrets.MONGO_URI }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      ALGORITHM: ${{ secrets.ALGORITHM }}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
 
     steps:
       - name: Checkout Repository
@@ -63,11 +67,38 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install Dependencies
+      - name: Create Virtual Environment
         run: |
+          python -m venv venv
+          source venv/bin/activate
           python -m pip install --upgrade pip
+          pip install -r requirements.txt
           pip install zappa
 
-      - name: Deploy using Zappa
+      - name: Inject Environment Variables into Zappa Settings
         run: |
-          zappa update production || zappa deploy production
+          python - <<'PY'
+          import json, os
+          path = "zappa_settings.json"
+          with open(path) as f:
+              data = json.load(f)
+          envs = data["production"]["environment_variables"]
+          envs["MONGO_URI"] = os.environ["MONGO_URI"]
+          envs["SECRET_KEY"] = os.environ["SECRET_KEY"]
+          envs["ALGORITHM"] = os.environ["ALGORITHM"]
+          envs["ACCESS_TOKEN_EXPIRE_MINUTES"] = os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"]
+          with open(path, "w") as f:
+              json.dump(data, f, indent=2)
+          print("✅ Updated environment variables in zappa_settings.json")
+          PY
+
+      - name: Deploy or Update Lambda
+        run: |
+          source venv/bin/activate
+          if zappa status production > /dev/null 2>&1; then
+            echo "🔁 Updating existing Lambda..."
+            zappa update production
+          else
+            echo "🚀 Deploying new Lambda..."
+            zappa deploy production
+          fi
