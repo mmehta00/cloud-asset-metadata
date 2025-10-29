@@ -72,8 +72,7 @@ jobs:
           python -m venv venv
           source venv/bin/activate
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install zappa
+          pip install -r requirements.txt zappa
 
       - name: Inject Environment Variables into Zappa Settings
         run: |
@@ -92,13 +91,12 @@ jobs:
           print("✅ Updated environment variables in zappa_settings.json")
           PY
 
+    
+      - name: Verify Zappa Config
+        run: cat zappa_settings.json
+
       - name: Deploy or Update Lambda
         run: |
           source venv/bin/activate
-          if zappa status production > /dev/null 2>&1; then
-            echo "🔁 Updating existing Lambda..."
-            zappa update production
-          else
-            echo "🚀 Deploying new Lambda..."
-            zappa deploy production
-          fi
+          zappa update production || zappa deploy production
+          

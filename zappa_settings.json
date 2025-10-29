@@ -2,15 +2,18 @@
   "production": {
     "app_function": "main.app",
     "aws_region": "us-east-1",
-    "runtime": "python3.9",
-    "environment_variables": {
-      "MONGO_URI": "your-mongodb-atlas-connection-string-here"
-    },
-    "keep_warm": false,
+    "runtime": "python3.10",
+
+    "s3_bucket": "cloud-asset-metadata",
+    "project_name": "cloud-asset-api",
     "memory_size": 512,
     "timeout_seconds": 30,
-    "project_name": "cloud-asset-api",
-    "s3_bucket": "zappa-cloud-asset-api-deployments",
+    "keep_warm": false,
+
+    "slim_handler": false,
+    "use_precompiled_packages": false,
+    "python_version": "3.10",
+
     "exclude": [
       "*.pyc",
       "__pycache__",
@@ -19,19 +22,17 @@
       ".env",
       "tests"
     ],
-    "slim_handler": true
-  },
-  "dev": {
-    "app_function": "main.app",
-    "aws_region": "us-east-1",
-    "runtime": "python3.9",
+    "include": [
+      "main.py",
+      "auth.py",
+      "requirements.txt"
+    ],
+
     "environment_variables": {
-      "MONGO_URI": "your-mongodb-atlas-connection-string-here"
-    },
-    "keep_warm": false,
-    "memory_size": 256,
-    "timeout_seconds": 30,
-    "project_name": "cloud-asset-api-dev",
-    "s3_bucket": "zappa-cloud-asset-api-dev-deployments"
+      "MONGO_URI": "__TO_BE_SET_IN_CI__",
+      "SECRET_KEY": "__TO_BE_SET_IN_CI__",
+      "ALGORITHM": "__TO_BE_SET_IN_CI__",
+      "ACCESS_TOKEN_EXPIRE_MINUTES": "__TO_BE_SET_IN_CI__"
+    }
   }
 }
